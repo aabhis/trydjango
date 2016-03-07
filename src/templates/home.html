@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        
+        <link rel="stylesheet" href="https://ajax.googleapis.com/ajax/libs/jqueryui/1.11.1/themes/smoothness/jquery-ui.css" type="text/css" media="all" />
+        <script type="text/javascript" src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAXWLpztTcGIDURBKce345XdXtfws5guEs"></script>
+        <script src="//ajax.googleapis.com/ajax/libs/jquery/2.1.1/jquery.min.js"></script>
+        <script src="https://ajax.googleapis.com/ajax/libs/jqueryui/1.11.1/jquery-ui.min.js" type="text/javascript"></script>
+        
+        <script type="text/javascript">
+            
+            var markerList = [];
+            var callBack = function(request, response) {
+                var searchText = request.term;
+                console.log("Debug point... ");
+                $.ajax({
+                    type: "GET",
+                    dataType: "text",
+                    url: "/get_drugs/?term="+searchText,
+                    success: function (data) {
+                        console.log("******** data is : "+data);
+                        var splitData = data.split("}, {");
+                        response(splitData);
+                        //response(parsedData);
+                    }
+                });
+            };
+            
+            $(function() {
+                $("#drugs").autocomplete({
+                    //source: "/get_drugs/",
+                    source: callBack,
+                    minLength: 2,
+                    select: function(event, ui) {
+                        console.log("Another debug point... ");
+                        var item = ui.item.value;
+                        console.log("--------- Selected value is :- "+item);
+                        clearAllMarkers();
+                        dropMarker(item);
+                    }
+                });
+            });
+            
+            var map;
+            var marker;
+            function init() {
+                console.log("Javascript init called... ");
+                
+                var mapOptions = {
+                    center: {
+                        lat: 37.75,
+                        lng: -122.42
+                    },
+                    zoom: 12
+                };
+                map = new google.maps.Map(document.getElementById('google_map_area'),
+                        mapOptions);
+                
+                /*
+                marker = new google.maps.Marker({
+                    map: map,
+                    draggable: true,
+                    animation: google.maps.Animation.DROP,
+                    position: {lat: 37.7792597, lng: -122.4192647}
+                });*/
+                //marker.addListener('click', toggleBounce);
+                
+                console.log("Will call the service now... ");
+                var servURL = "http://127.0.0.1:8000/films";
+                
+                jQuery.ajax({
+                    type: "GET",
+                    url: servURL,
+                    contentType: "application/json; charset=utf-8",
+                    dataType: "json",
+                    success: function(data, status, jqXHR) {
+                        console.log("AJAX call successful... ");
+                        var parseJson = jqXHR.responseText;
+                        //console.log("Result is :- " + parseJson);
+                        var parsed = JSON.parse(parseJson);
+                        console.log("For a debug point... ");
+                        for (var x in parsed) {
+                                var markerPntObj = parsed[x];
+                                console.log("***** Latitude : "+markerPntObj.latitude+" , Longitude : "+markerPntObj.longitude);
+
+                                // Put all the markers here...
+                                // To add the marker to the map, use the 'map' property
+                                var myLatlng = new google.maps.LatLng(markerPntObj.latitude , markerPntObj.longitude);
+                                marker = new google.maps.Marker({
+                                    position: myLatlng,
+                                    map: map,
+                                    animation: google.maps.Animation.DROP
+                                });
+                                // This is where you want to add the secret message
+                                attachInfoToMarker(marker , markerPntObj);
+                            markerList.push(marker);
+                            }
+                    },
+                    error: function(jqXHR, status) {
+                        console.log("AJAX call failed... ");
+                        console.log("Result is :- " + jqXHR);
+                        console.log("Status is :- " + status);
+                    }
+                });
+            }
+            
+            function clearAllMarkers() {
+                while(markerList.length) {
+                    console.log("MarkerList length :-> "+markerList.length);
+                    markerList.pop().setMap(null);
+                }
+            }
+            
+            function dropMarker(selection) {
+                //var parsedData = JSON.parse(selection);
+                var formattedSelection = "[{"+selection+"}]";
+                var parsedData = JSON.parse(formattedSelection);
+                console.log("Selection is :- "+selection);
+                console.log("Latitude is :- "+parsedData[0].latitude+" , Longitude is :- "+parsedData[0].longitude);
+                
+                var myLatlng = new google.maps.LatLng(parsedData[0].latitude , parsedData[0].longitude);
+                marker = new google.maps.Marker({
+                    position: myLatlng,
+                    map: map,
+                    animation: google.maps.Animation.DROP
+                });
+                
+                markerList.push(marker);
+                attachInfoToMarker(marker , parsedData[0]);
+            }
+            /*
+            function toggleBounce() {
+                if (marker.getAnimation() !== null) {
+                    marker.setAnimation(null);
+                } else {
+                    marker.setAnimation(google.maps.Animation.BOUNCE);
+                }
+            }*/
+            
+            function attachInfoToMarker(marker, attachMessage) {
+                var attachMsgTitle = attachMessage.title;
+                var attachMsgLocation = attachMessage.location;
+                var attachMsgStreet = attachMessage.street;
+                var attachMsgCounty = attachMessage.county;
+                
+                var attachMessage = "Movie title : "+attachMsgTitle+" Movie Location : "+attachMsgLocation+" Street : "+attachMsgStreet;
+                //console.log("--- attachMsgTitle : "+attachMsgTitle+" , attachMsgLocation : "+attachMsgLocation+" , attachMsgStreet : "+attachMsgStreet+" ,attachMsgCounty : "+attachMsgCounty
+                
+                var infoWindow = new google.maps.InfoWindow({
+                    content: attachMessage,
+                    size: new google.maps.Size(50, 50)
+                });
+                google.maps.event.addListener(marker, 'click', function() {
+                    infoWindow.open(map, marker);
+                });
+            }
+        </script>
+    </head>
+
+    <body onload="init()">
+            <h1>SFMovies Application</h1>
+            
+            <table border="1" style="width: 1400px; height: 800px;">
+                <tr>
+                    <th>Google Map API</th>
+                </tr>
+                <tr>
+                    <div class="ui-widget">
+                        <label for="drugs">Drugs: </label>
+                        <input id="drugs">
+                    </div>
+                </tr>
+                <tr>
+                    <td rowspan="2">
+                        <div id="google_map_area" style="width: 1050px; height: 780px;"></div>
+                        <div id="Next" style="width: 10px; height: 20px;">
+                            <h3>Next</h3>
+                        </div>
+                    </td>
+                </tr>
+            </table>
+        </body>
+</html>
